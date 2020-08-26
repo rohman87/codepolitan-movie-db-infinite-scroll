@@ -25,14 +25,40 @@ public class MainActivity extends AppCompatActivity {
 
     private RequestQueue requestQueue;
     private static final String TAG = MainActivity.class.getSimpleName();
+    private ActivityMainBinding binding;
     private int page = 1;
+    private int lastPage = 0;
+    private boolean isScroll = true;
+    private MovieAdapter movieAdapter = new MovieAdapter();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         fetchData(page);
+        final LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        binding.rvMovies.setLayoutManager(layoutManager);
+        binding.rvMovies.setHasFixedSize(true);
+        binding.rvMovies.setAdapter(movieAdapter);
+
+        binding.rvMovies.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                int countItems = layoutManager.getItemCount();
+                int currentItems = layoutManager.getChildCount();
+                int firstVisiblePosition = layoutManager.findFirstVisibleItemPosition();
+                int totalScrollItem = currentItems + firstVisiblePosition;
+
+                if (isScroll && totalScrollItem >= countItems && page <= lastPage){
+                    isScroll = false;
+                    page += 1;
+                    fetchData(page);
+                }
+            }
+        });
     }
 
     private void fetchData(int page) {
@@ -47,7 +73,15 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onResponse(String response) {
                         hideLoading();
-                        Log.d(TAG, "api response: "+response);
+                        if (response != null){
+                            MovieResponse movieResponse = new Gson().fromJson(response, MovieResponse.class);
+                            if (movieAdapter.getDataMovies() > 0){
+                                movieAdapter.removeDataLoading();
+                                isScroll = true;
+                            }
+                            lastPage = movieResponse.getTotalPages();
+                            movieAdapter.addDataMovies(movieResponse.getMovies());
+                        }
                     }
                 },
                 new Response.ErrorListener() {
@@ -66,6 +100,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadLoading() {
+        if (movieAdapter.getDataMovies() > 0){
+            movieAdapter.addDataLoading();
+        }
         binding.swipeMain.setRefreshing(true);
     }
 
